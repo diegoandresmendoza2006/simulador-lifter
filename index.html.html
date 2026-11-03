@@ -1,0 +1,478 @@
+<title>Simulador de lifter</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: banco de pruebas — escena animada a la izquierda, panel de fuente a la derecha, lecturas y fórmulas debajo */
+:root{
+  --bg:#eef2f6; --panel:#ffffff; --ink:#15202b; --muted:#5b6b7b; --line:#d3dce5; --track:#dfe6ee;
+  --accent:#1d5fd0; --copper:#c8661d; --alu:#a7b3bf; --alu-dark:#7b8896; --balsa:#c99a5b;
+  --ion:#e0a800; --air:#6f9fd6; --glow:#5b8cff; --spark:#7a3cff;
+  --ok:#14804a; --ok-bg:#e3f5ea; --warn:#a66300; --warn-bg:#fdf1dc; --bad:#b4231b; --bad-bg:#fde8e6; --idle-bg:#e8edf2;
+  --scene:#f7f9fb; --table:#cfd8e1;
+  --f-display:"Chakra Petch","Arial Narrow",sans-serif;
+  --f-body:"Atkinson Hyperlegible",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d141c; --panel:#141e29; --ink:#e5ecf3; --muted:#93a4b5; --line:#263546; --track:#223142;
+  --accent:#6ea6ff; --copper:#f08c3e; --alu:#8e9caa; --alu-dark:#647382; --balsa:#d8a865;
+  --ion:#ffd24a; --air:#5d8fc7; --glow:#7aa2ff; --spark:#b48cff;
+  --ok:#5fd394; --ok-bg:#16301f; --warn:#ffbb55; --warn-bg:#33270f; --bad:#ff8a80; --bad-bg:#3a1a19; --idle-bg:#1b2733;
+  --scene:#0f1821; --table:#273646; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d141c; --panel:#141e29; --ink:#e5ecf3; --muted:#93a4b5; --line:#263546; --track:#223142;
+  --accent:#6ea6ff; --copper:#f08c3e; --alu:#8e9caa; --alu-dark:#647382; --balsa:#d8a865;
+  --ion:#ffd24a; --air:#5d8fc7; --glow:#7aa2ff; --spark:#b48cff;
+  --ok:#5fd394; --ok-bg:#16301f; --warn:#ffbb55; --warn-bg:#33270f; --bad:#ff8a80; --bad-bg:#3a1a19; --idle-bg:#1b2733;
+  --scene:#0f1821; --table:#273646; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-block:24px 48px;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
+  display:flex;flex-direction:column;gap:20px}
+header h1{font-family:var(--f-display);font-size:clamp(28px,5vw,40px);line-height:1.1;margin:0 0 6px;text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:68ch}
+.eyebrow{font-family:var(--f-display);font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
+
+.main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:860px){.main{grid-template-columns:1fr}}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.stage canvas{display:block;width:100%;aspect-ratio:4/3;max-width:100%;background:var(--scene)}
+.status{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-top:1px solid var(--line)}
+.pill{font-family:var(--f-display);font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;padding:6px 12px;border-radius:999px;white-space:nowrap}
+.pill.idle{background:var(--idle-bg);color:var(--muted)}
+.pill.corona{background:var(--idle-bg);color:var(--accent)}
+.pill.move{background:var(--warn-bg);color:var(--warn)}
+.pill.fly{background:var(--ok-bg);color:var(--ok)}
+.pill.spark{background:var(--bad-bg);color:var(--bad)}
+.status p{margin:0;min-width:0}
+
+.controls{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.controls h2,.card h2{font-family:var(--f-display);font-size:18px;margin:0;letter-spacing:.02em}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.presets button{font:inherit;font-size:14px;line-height:1.25;padding:9px 8px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink);cursor:pointer;text-align:left}
+.presets button b{display:block;font-family:var(--f-display);font-size:14px}
+.presets button span{color:var(--muted);font-size:12px}
+.presets button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.presets button:focus-visible,input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.group{display:flex;flex-direction:column;gap:12px}
+.glabel{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline}
+.ctl label{font-weight:700;font-size:15px}
+.ctl output{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:15px}
+.ctl small{grid-column:1/-1;color:var(--muted);font-size:13px}
+.ctl input{grid-column:1/-1;width:100%;accent-color:var(--accent);margin:4px 0 0}
+.ctl input:disabled{opacity:.45;cursor:not-allowed}
+.info{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.info h3{font-family:var(--f-display);font-size:15px;letter-spacing:.04em;text-transform:uppercase;margin:0 0 6px;color:var(--accent)}
+.info ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px}
+.info b{font-weight:700}
+.ctl:has(input:disabled) label,.ctl:has(input:disabled) output{color:var(--muted)}
+
+.readouts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.readouts div{background:var(--panel);padding:12px 14px;min-width:0}
+.readouts span{display:block;font-size:13px;color:var(--muted)}
+.readouts b{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:22px;font-weight:500}
+.readouts small{display:block;font-size:12px;color:var(--muted)}
+
+.meter{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}
+.meter .top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.meter .top b{font-family:var(--f-mono);font-weight:500}
+.bar{position:relative;height:18px;background:var(--track);border-radius:9px;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;width:0;background:var(--warn);border-radius:9px;transition:width .25s}
+.bar .goal{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink)}
+.scale{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);font-family:var(--f-mono)}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.formula{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;font-size:15px;align-items:baseline;border-bottom:1px solid var(--line);padding-bottom:8px}
+.formula:last-child{border-bottom:none;padding-bottom:0}
+.formula code{font-family:var(--f-mono);font-size:14px}
+.formula em{font-style:normal;font-family:var(--f-mono);font-variant-numeric:tabular-nums;color:var(--accent);text-align:right}
+.formula small{grid-column:1/-1;color:var(--muted);font-size:13px}
+.legend{display:flex;flex-direction:column;gap:10px;margin:0;padding:0;list-style:none}
+.legend li{display:grid;grid-template-columns:118px 1fr;gap:10px;align-items:start;font-size:15px}
+.legend .pill{font-size:12px;text-align:center}
+.note{font-size:13px;color:var(--muted);margin:0}
+@media (prefers-reduced-motion: reduce){.bar i{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Feria de la Física 2026 · simulación</div>
+    <h1>¿Cuándo se eleva un lifter?</h1>
+    <p>Elige un modelo y mueve sus controles. Al cambiar de modelo, sus controles vuelven a los valores iniciales. La simulación calcula el campo eléctrico, la corriente de iones y el empuje, y muestra si hay chispa, si el lifter solo se mueve o si llega a elevarse.</p>
+  </header>
+
+  <div class="main">
+    <section class="stage" aria-label="Escena del lifter">
+      <canvas id="scene" width="800" height="600" role="img" aria-label="Animación del lifter según los valores elegidos"></canvas>
+      <div class="status" aria-live="polite">
+        <span id="pill" class="pill idle">Apagado</span>
+        <p id="statusText">Sube el voltaje para empezar.</p>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="Controles">
+      <div class="group">
+        <h2>Fuente y prototipo</h2>
+        <div class="presets" role="group" aria-label="Configuraciones de ejemplo">
+          <button id="p-ours" type="button" aria-pressed="true"><b>Nuestro modelo</b><span>batería 18650 + módulo</span></button>
+          <button id="p-lab" type="button" aria-pressed="false"><b>Escala científica</b><span>flyback + ZVS</span></button>
+          <button id="p-arc" type="button" aria-pressed="false"><b>Demasiado voltaje</b><span>salta chispa</span></button>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="glabel">Fuente de alto voltaje</div>
+        <div class="ctl"><label for="v">Voltaje de la fuente</label><output id="vo" for="v"></output>
+          <input id="v" type="range" min="0" max="50" step="0.5" value="0"><small id="vhint">Súbelo poco a poco.</small></div>
+        <div class="ctl"><label for="i">Corriente máxima de la fuente</label><output id="io" for="i"></output>
+          <input id="i" type="range" min="0" max="100" step="1" value="20"><small>Cuánta corriente puede sostener. Si el lifter pide más, el voltaje cae.</small></div>
+      </div>
+
+      <div class="info" aria-live="polite">
+        <h3 id="infoTitle"></h3>
+        <ul id="infoList"></ul>
+      </div>
+      <p id="lockNote" class="note" hidden>En nuestro modelo la corriente, la separación, el tamaño y la masa son los del prototipo real y no se pueden cambiar. Solo se mueve el voltaje del módulo.</p>
+      <div class="group">
+        <div class="glabel">Prototipo</div>
+        <div class="ctl"><label for="d">Separación alambre–aluminio</label><output id="do" for="d"></output>
+          <input id="d" type="range" min="1" max="6" step="0.5" value="3"></div>
+        <div class="ctl"><label for="s">Lado del triángulo</label><output id="so" for="s"></output>
+          <input id="s" type="range" min="10" max="40" step="1" value="10"></div>
+        <div class="ctl"><label for="m">Masa total</label><output id="mo" for="m"></output>
+          <input id="m" type="range" min="0.3" max="10" step="0.1" value="1"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="readouts" aria-label="Lecturas">
+    <div><span>Voltaje en el lifter</span><b id="rV">0</b><small id="rV2">kV</small></div>
+    <div><span>Corriente de iones</span><b id="rI">0</b><small>µA</small></div>
+    <div><span>Campo promedio</span><b id="rE">0</b><small id="rE2">kV/cm</small></div>
+    <div><span>Empuje</span><b id="rT">0</b><small>gramos-fuerza</small></div>
+    <div><span>Peso</span><b id="rW">0</b><small>gramos-fuerza</small></div>
+  </section>
+
+  <section class="meter" aria-label="Empuje frente a peso">
+    <div class="top"><span>Empuje / peso</span><b id="ratio">0 %</b></div>
+    <div class="bar"><i id="barFill"></i><span class="goal" style="left:50%"></span></div>
+    <div class="scale"><span>0</span><span>se eleva (100 %)</span><span>200 %</span></div>
+  </section>
+
+  <div class="cards">
+    <section class="card">
+      <h2>Las fórmulas, en vivo</h2>
+      <div class="formula"><code>V₀ ≈ 4 + 1,7·d</code><em id="fV0"></em><small>Voltaje mínimo para la descarga corona (empieza el siseo).</small></div>
+      <div class="formula"><code>V<sub>chispa</sub> ≈ 11,5·d</code><em id="fVs"></em><small>Por encima de esto el aire se rompe y salta un arco.</small></div>
+      <div class="formula"><code>I = C·L·V·(V − V₀)</code><em id="fI"></em><small>Corriente de corona; L es la longitud del alambre (3 lados).</small></div>
+      <div class="formula"><code>T = η·I·d / μ</code><em id="fT"></em><small>Empuje del viento iónico; μ ≈ 2×10⁻⁴ m²/V·s, η ≈ 0,6.</small></div>
+      <div class="formula"><code>W = m·g</code><em id="fW"></em><small>Peso. Se eleva cuando T ≥ W.</small></div>
+    </section>
+
+    <section class="card">
+      <h2>Cómo leer la simulación</h2>
+      <ul class="legend">
+        <li><span class="pill idle">Apagado</span><span>El voltaje no alcanza V₀: el aire no se ioniza y no hay empuje.</span></li>
+        <li><span class="pill corona">Corona</span><span>Siseo y brillo en el alambre. Hay viento iónico, pero el empuje es muy pequeño frente al peso.</span></li>
+        <li><span class="pill move">Se mueve</span><span>El empuje ya alcanza a sacudir el lifter (como cuando lo colgaron del hilo), pero no supera el peso.</span></li>
+        <li><span class="pill fly">Se eleva</span><span>T ≥ W: el empuje vence el peso y el lifter despega.</span></li>
+        <li><span class="pill spark">Chispa</span><span>El campo rompe el aire: salta un arco, la corriente se va por ahí y se pierde el empuje.</span></li>
+      </ul>
+      <p class="note">Modelo simplificado con valores aproximados, calibrado con lifters típicos de 20 cm. Sirve para comparar tendencias, no para predecir valores exactos.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+const C_K = 1.3e-12, MU = 2e-4, ETA = 0.6, G = 9.81;
+const cur = {v:50, iIdx:20, d:3, s:10, m:1};
+
+// corriente máxima en escala logarítmica: 5 µA … 2000 µA
+const iFromIdx = x => 5 * Math.pow(400, x/100);
+const idxFromI = I => Math.round(100 * Math.log(I/5) / Math.log(400));
+
+function physics(p){
+  const d = p.d/100, L = 3*p.s/100, Voc = p.v*1000, Imax = iFromIdx(p.iIdx)*1e-6;
+  const V0 = (4 + 1.7*p.d)*1000, Vs = 11.5*p.d*1000;
+  const load = V => V > V0 ? C_K*L*V*(V-V0) : 0;
+  let V = Voc, I = load(Voc), limited = false;
+  if (I > Imax){ limited = true; I = Imax; V = (V0 + Math.sqrt(V0*V0 + 4*Imax/(C_K*L)))/2; }
+  let state, spark = false;
+  if (V >= Vs){ spark = true; }
+  let T = spark ? 0 : ETA*I*d/MU;
+  const W = p.m/1000*G;
+  const r = T/W;
+  if (spark) state = "spark";
+  else if (V <= V0) state = "idle";
+  else if (r >= 1) state = "fly";
+  else if (r >= 0.05) state = "move";
+  else state = "corona";
+  return {V, I, T, W, r, V0, Vs, E:V/p.d/1000, limited, state, Voc, Imax};
+}
+
+const fmt = (x, n=1) => x.toLocaleString("es-CO",{minimumFractionDigits:n, maximumFractionDigits:n});
+const TXT = {
+  idle: ["Apagado","No hay suficiente voltaje para ionizar el aire. No hay viento iónico."],
+  corona: ["Corona","Hay efecto corona y viento iónico, pero el empuje es muy pequeño comparado con el peso."],
+  move: ["Se mueve","Hay empuje: el lifter se sacude y se mueve, pero todavía pesa más de lo que empuja."],
+  fly: ["Se eleva","El empuje supera el peso (T ≥ W). El lifter despega."],
+  spark: ["Chispa","El campo es demasiado fuerte para esta separación: salta un arco y el empuje se pierde."]
+};
+
+let R = physics(cur);
+function update(){
+  R = physics(cur);
+  $("vo").textContent = fmt(cur.v,1) + " kV";
+  const Imax = iFromIdx(cur.iIdx);
+  $("io").textContent = (Imax >= 1000 ? fmt(Imax/1000,2)+" mA" : fmt(Imax,0)+" µA");
+  $("do").textContent = fmt(cur.d,1) + " cm";
+  $("so").textContent = fmt(cur.s,0) + " cm";
+  $("mo").textContent = fmt(cur.m,1) + " g";
+
+  $("rV").textContent = fmt(R.V/1000,1);
+  $("rV2").textContent = R.limited && !R.spark ? "kV · la fuente no alcanza" : "kV";
+  $("rI").textContent = fmt(R.I*1e6, R.I*1e6 < 100 ? 1 : 0);
+  $("rE").textContent = fmt(R.E,1);
+  $("rT").textContent = fmt(R.T/G*1000, 2);
+  $("rW").textContent = fmt(R.W/G*1000, 2);
+  $("ratio").textContent = fmt(R.r*100,0) + " %";
+  const fill = $("barFill");
+  fill.style.width = Math.min(100, R.r*50) + "%";
+  fill.style.background = R.state==="fly" ? "var(--ok)" : R.state==="spark" ? "var(--bad)" : "var(--warn)";
+
+  $("fV0").textContent = fmt(R.V0/1000,1)+" kV";
+  $("fVs").textContent = fmt(R.Vs/1000,1)+" kV";
+  $("fI").textContent = fmt(R.I*1e6,1)+" µA";
+  $("fT").textContent = fmt(R.T*1000,2)+" mN";
+  $("fW").textContent = fmt(R.W*1000,2)+" mN";
+
+  const [label, text] = TXT[R.state];
+  const pill = $("pill"); pill.textContent = label; pill.className = "pill " + R.state;
+  let extra = "";
+  if (R.state !== "spark" && R.limited && R.V > R.V0) extra = " La fuente no da la corriente que pide el lifter, así que el voltaje cae de " + fmt(cur.v,1) + " a " + fmt(R.V/1000,1) + " kV.";
+  if (R.state === "spark") extra = " Baja el voltaje por debajo de " + fmt(R.Vs/1000,1) + " kV o aumenta la separación.";
+  if (R.state === "move" || R.state === "corona") {
+    const need = R.W/(ETA*(cur.d/100)/MU)*1e6;
+    extra += " Para elevarse necesita unos " + fmt(need,0) + " µA sostenidos.";
+  }
+  if (cur.v === 0) extra = " Sube el voltaje poco a poco y mira qué pasa.";
+  if (active === "p-ours" && R.V > R.V0) extra += " Límite real del módulo: por más que se suba, en el lifter no pasa de ≈ 13 kV.";
+  $("statusText").textContent = text + extra;
+  $("vhint").textContent = (active === "p-ours" ? "Máximo del módulo: 50 kV nominales. " : "Lo que la fuente da sin carga. ") + "Corona desde ≈ " + fmt(R.V0/1000,1) + " kV · chispa desde ≈ " + fmt(R.Vs/1000,1) + " kV.";
+}
+
+// ---------- controles ----------
+// Cada modelo guarda sus propios valores; cambiar de modelo no borra lo que se movió en otro.
+const MODELS = {
+  "p-ours": {v:50, iIdx:idxFromI(20),   d:3, s:10, m:1, locked:true},
+  "p-lab":  {v:30, iIdx:idxFromI(1000), d:3, s:20, m:3},
+  "p-arc":  {v:45, iIdx:idxFromI(1000), d:3, s:20, m:3},
+};
+const DEFAULTS = JSON.parse(JSON.stringify(MODELS));
+const INFO = {
+  "p-ours": ["Condiciones de nuestro modelo", [
+    "<b>Alimentación:</b> batería 18650 de 3,7 V, sin fuente de laboratorio.",
+    "<b>Alto voltaje:</b> la batería alimenta el módulo MC-1052, que da pulsos y solo ≈ 20 µA sostenidos.",
+    "<b>Lifter:</b> triángulo de 10 cm, 1 g, alambre a 3 cm del aluminio.",
+    "<b>Para elevarse necesitaría:</b> ≈ 109 µA de corriente de iones (T ≥ W).",
+    "<b>Qué pasa:</b> el lifter pide más corriente de la que da el módulo, el voltaje cae a ≈ 13 kV y el empuje llega a ≈ 18 % del peso. Se mueve, pero no vuela."
+  ]],
+  "p-lab": ["Condiciones para que se eleve", [
+    "<b>Fuente:</b> flyback con driver ZVS, ≈ 30 kV continuos y hasta ≈ 1 mA.",
+    "<b>Lifter:</b> triángulo de 20 cm por lado, 3 g, alambre a 3 cm del aluminio.",
+    "<b>Corriente necesaria:</b> ≈ 330 µA sostenidos para que el empuje iguale el peso.",
+    "<b>Rango de vuelo:</b> se eleva desde ≈ 25,5 kV; por encima de ≈ 34,5 kV salta la chispa.",
+    "<b>Clave:</b> una fuente que mantenga el voltaje mientras entrega la corriente."
+  ]],
+  "p-arc": ["Condiciones de la chispa", [
+    "<b>Fuente y lifter:</b> los mismos de la escala científica, pero a 45 kV.",
+    "<b>Límite del aire:</b> con 3 cm de separación se rompe desde ≈ 34,5 kV (≈ 11,5 kV por cm).",
+    "<b>Qué pasa:</b> salta un arco, la corriente se va por la chispa y el empuje se pierde.",
+    "<b>Cómo evitarlo:</b> bajar de 34,5 kV o separar más el alambre (a 4 cm la chispa salta desde ≈ 46 kV)."
+  ]],
+};
+let active = "p-ours";
+const LOCKABLE = ["i","d","s","m"];
+function bind(id, key){
+  const el = $(id);
+  el.addEventListener("input", () => { MODELS[active][key] = parseFloat(el.value); cur[key] = MODELS[active][key]; update(); });
+}
+bind("v","v"); bind("i","iIdx"); bind("d","d"); bind("s","s"); bind("m","m");
+function applyPreset(k){
+  active = k;
+  MODELS[k] = Object.assign({}, DEFAULTS[k]);   // al entrar a un modelo, vuelve a sus valores iniciales
+  const p = MODELS[k];
+  Object.assign(cur, {v:p.v, iIdx:p.iIdx, d:p.d, s:p.s, m:p.m});
+  $("v").value = cur.v; $("i").value = cur.iIdx; $("d").value = cur.d; $("s").value = cur.s; $("m").value = cur.m;
+  LOCKABLE.forEach(id => { $(id).disabled = !!p.locked; });
+  $("lockNote").hidden = !p.locked;
+  $("infoTitle").textContent = INFO[k][0];
+  $("infoList").innerHTML = INFO[k][1].map(x => "<li>" + x + "</li>").join("");
+  $("vhint").hidden = false;
+  Object.keys(MODELS).forEach(m => $(m).setAttribute("aria-pressed", m === k ? "true" : "false"));
+  update();
+}
+Object.keys(MODELS).forEach(k => $(k).addEventListener("click", () => applyPreset(k)));
+
+// ---------- animación ----------
+const cv = $("scene"), ctx = cv.getContext("2d");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let W = 800, H = 600, dpr = 1;
+function resize(){
+  const r = cv.getBoundingClientRect(); dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = r.width; H = r.height; cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+new ResizeObserver(resize).observe(cv); resize();
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let col = {};
+function readColors(){ ["--scene","--table","--copper","--alu","--alu-dark","--balsa","--ion","--air","--glow","--spark","--ink","--muted","--ok","--bad"].forEach(n => col[n]=css(n)); }
+readColors();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", readColors);
+new MutationObserver(readColors).observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
+
+const ions = Array.from({length:70}, () => ({u:Math.random(), x:Math.random()*2-1, sp:0.6+Math.random()*0.8}));
+const air = Array.from({length:46}, () => ({u:Math.random(), x:Math.random()*2-1, sp:0.5+Math.random()*0.6}));
+let lift = 0, t0 = performance.now(), sparkT = 0, bolts = [];
+
+function boltPath(x1,y1,x2,y2){
+  const pts = [[x1,y1]]; const n = 9;
+  for (let k=1;k<n;k++){ const u=k/n; pts.push([x1+(x2-x1)*u+(Math.random()-.5)*22, y1+(y2-y1)*u]); }
+  pts.push([x2,y2]); return pts;
+}
+
+function frame(now){
+  const t = (now - t0)/1000; const dt = Math.min(0.05, (now - (frame.last||now))/1000); frame.last = now;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = col["--scene"]; ctx.fillRect(0,0,W,H);
+
+  const tableY = H*0.86;
+  ctx.fillStyle = col["--table"]; ctx.fillRect(0,tableY,W,H-tableY);
+
+  // tamaño en pantalla según el lado
+  const sw = Math.min(W*0.78, W*(0.36 + (cur.s-10)/30*0.42));
+  const px = sw / cur.s;                    // px por cm
+  const aluH = 3*px, gap = cur.d*px, leg = 0.5*px;
+  const totalH = leg + aluH + gap + 0.5*px;
+
+  // altura de vuelo
+  let target = 0;
+  if (R.state === "fly") target = Math.min(1, 0.35 + (R.r-1)*0.9);
+  lift += (target - lift) * Math.min(1, dt*1.6);
+  const maxRise = Math.max(0, (tableY - totalH - 150) * 0.75);
+  let baseY = tableY - lift*maxRise;
+  let dx = 0, rot = 0;
+  if (!reduce){
+    if (R.state === "move"){ const a = Math.min(1, R.r*1.5); dx = Math.sin(t*9)*3*a; rot = Math.sin(t*6.3)*0.03*a; baseY -= Math.abs(Math.sin(t*11))*4*a; }
+    if (R.state === "fly"){ dx = Math.sin(t*1.7)*4; rot = Math.sin(t*1.3)*0.025; baseY += Math.sin(t*2.1)*3; }
+  }
+  const cx = W/2 + dx;
+  const left = cx - sw/2, right = cx + sw/2;
+  const footY = baseY, aluBot = footY - leg, aluTop = aluBot - aluH, wireY = aluTop - gap, postTop = wireY - 0.5*px;
+
+  // cables de alimentación
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#d33"; ctx.beginPath(); ctx.moveTo(left+6, wireY); ctx.bezierCurveTo(left-40, wireY+40, 30, tableY-60, 18, tableY); ctx.stroke();
+  ctx.strokeStyle = col["--ink"]; ctx.beginPath(); ctx.moveTo(left+8, aluBot-6); ctx.bezierCurveTo(left-30, aluBot+30, 50, tableY-30, 40, tableY); ctx.stroke();
+
+  ctx.save();
+  ctx.translate(cx, (aluTop+aluBot)/2); ctx.rotate(rot); ctx.translate(-cx, -(aluTop+aluBot)/2);
+
+  const on = R.state !== "idle";
+  // viento de aire neutro (debajo y a través)
+  if (on && R.state !== "spark"){
+    const strength = Math.min(1, R.r*0.8 + 0.15);
+    ctx.fillStyle = col["--air"];
+    air.forEach(a => {
+      if (!reduce) a.u = (a.u + dt*a.sp*0.35*(0.4+strength)) % 1;
+      const y = wireY + a.u*(tableY - 6 - wireY);
+      const x = cx + a.x*sw*0.48;
+      ctx.globalAlpha = 0.25 + 0.5*strength*(1-a.u*0.6);
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x-4, y-9); ctx.lineTo(x+4, y-9); ctx.closePath(); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // postes
+  ctx.strokeStyle = col["--balsa"]; ctx.lineWidth = Math.max(3, px*0.18); ctx.lineCap="round";
+  [left+2, cx, right-2].forEach(x => { ctx.beginPath(); ctx.moveTo(x, footY); ctx.lineTo(x, postTop); ctx.stroke(); });
+
+  // aluminio
+  const grad = ctx.createLinearGradient(0, aluTop, 0, aluBot);
+  grad.addColorStop(0, col["--alu"]); grad.addColorStop(1, col["--alu-dark"]);
+  ctx.fillStyle = grad; ctx.fillRect(left, aluTop, sw, aluH);
+  ctx.strokeStyle = col["--balsa"]; ctx.lineWidth = Math.max(2, px*0.14); ctx.beginPath(); ctx.moveTo(left, aluTop); ctx.lineTo(right, aluTop); ctx.stroke();
+
+  // iones
+  if (on && R.state !== "spark"){
+    const dens = Math.min(1, 0.2 + Math.log10(1 + R.I*1e6)/3);
+    const n = Math.round(ions.length*dens);
+    ctx.fillStyle = col["--ion"];
+    for (let k=0;k<n;k++){ const io = ions[k];
+      if (!reduce) io.u = (io.u + dt*io.sp*0.9) % 1;
+      const y = wireY + io.u*(aluTop - wireY);
+      const x = cx + io.x*sw*0.5*(0.92 + 0.08*io.u);
+      ctx.globalAlpha = 0.9 - io.u*0.5;
+      ctx.beginPath(); ctx.arc(x, y, Math.max(2, px*0.1), 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // brillo de corona
+  if (on){
+    const g = R.state === "spark" ? 0.4 : Math.min(1, 0.35 + (R.V - R.V0)/(R.Vs - R.V0));
+    ctx.save(); ctx.shadowColor = col["--glow"]; ctx.shadowBlur = 18*g + (reduce?0:4*Math.sin(t*14));
+    ctx.strokeStyle = col["--glow"]; ctx.globalAlpha = 0.55*g; ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.moveTo(left, wireY); ctx.lineTo(right, wireY); ctx.stroke(); ctx.restore();
+  }
+  // alambre
+  ctx.strokeStyle = col["--copper"]; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(left, wireY); ctx.lineTo(right, wireY); ctx.stroke();
+
+  // chispas
+  if (R.state === "spark"){
+    sparkT -= dt;
+    if (sparkT <= 0){ sparkT = reduce ? 1.2 : 0.12 + Math.random()*0.25;
+      bolts = Array.from({length:1+Math.floor(Math.random()*2)}, () => { const x = left + 20 + Math.random()*(sw-40); return boltPath(x, wireY, x + (Math.random()-.5)*20, aluTop); }); }
+    ctx.save(); ctx.shadowColor = col["--spark"]; ctx.shadowBlur = 16; ctx.strokeStyle = col["--spark"]; ctx.lineWidth = 2.6;
+    bolts.forEach(b => { ctx.beginPath(); b.forEach(([x,y],k) => k ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke(); });
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1; ctx.shadowBlur = 0;
+    bolts.forEach(b => { ctx.beginPath(); b.forEach(([x,y],k) => k ? ctx.lineTo(x,y) : ctx.moveTo(x,y)); ctx.stroke(); });
+    ctx.restore();
+  }
+  ctx.restore();
+
+  // flechas de fuerzas
+  const arrow = (x, y1, y2, c, label) => {
+    ctx.strokeStyle = c; ctx.fillStyle = c; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+    const dir = Math.sign(y2 - y1); ctx.beginPath(); ctx.moveTo(x, y2 + dir*10); ctx.lineTo(x-10, y2-dir*6); ctx.lineTo(x+10, y2-dir*6); ctx.closePath(); ctx.fill();
+    ctx.font = "700 15px 'Atkinson Hyperlegible', system-ui"; ctx.textAlign = "center"; ctx.fillText(label, x, dir>0 ? y2+30 : y2-18);
+  };
+  const midY = (aluTop + wireY)/2;
+  const wLen = 70;
+  const tLen = Math.max(0, Math.min(midY - 40, 140, wLen*R.r));
+  const ax = Math.min(W-40, right + 40);
+  arrow(ax, midY, midY + wLen, col["--bad"], "W");
+  if (tLen > 3) arrow(ax + 0, midY, midY - tLen, col["--ok"], "T");
+
+  // etiquetas
+  ctx.fillStyle = col["--muted"]; ctx.font = "13px 'Atkinson Hyperlegible', system-ui"; ctx.textAlign = "left";
+  ctx.fillText("alambre (+)", Math.max(8, left - 4), wireY - 14);
+  ctx.fillText("aluminio (−)", Math.max(8, left - 4), aluBot + 20 > tableY - 4 && lift < 0.05 ? tableY + 22 : aluBot + 20);
+  ctx.textAlign = "right";
+  ctx.fillStyle = col["--ink"]; ctx.fillText(fmt(R.V/1000,1) + " kV en el lifter", W - 12, tableY + 24);
+
+  requestAnimationFrame(frame);
+}
+
+applyPreset("p-ours");
+requestAnimationFrame(frame);
+})();
+</script>
